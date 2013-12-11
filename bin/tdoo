@@ -1,5 +1,8 @@
 #!/usr/bin/env ruby
 require 'gli'
+require 'yaml'
+require 'rainbow'
+
 begin # XXX: Remove this begin/rescue before distributing your app
 require 'tdoo'
 rescue LoadError
@@ -11,72 +14,143 @@ end
 
 include GLI::App
 
-program_desc 'Describe your application here'
+program_desc 'A mini todo command-line application'
 
 version Tdoo::VERSION
 
-desc 'Describe some switch here'
-switch [:s,:switch]
+defaults = YAML.load_file('defaults.yaml')
+puts defaults
 
-desc 'Describe some flag here'
-default_value 'the default'
-arg_name 'The name of the argument'
-flag [:f,:flagname]
+desc 'Path to the todo file'
+default_value defaults[:filename]
+arg_name 'todo_file'
+flag [:f,:filename]
 
-desc 'Describe new here'
-arg_name 'Describe arguments to new here'
-command :new do |c|
-  c.desc 'Describe a switch to new'
-  c.switch :s
+desc 'Create a new task in the task list'
+long_desc "
+A task has a name and a priority. By default, new tasks has the lowest
+priority, though this can be overridden
+"
+arg_name 'task'
+command [:new, :n] do |c|
+  c.desc 'specify the project'
+  c.arg_name 'project'
+  c.flag [:p, :project]
 
-  c.desc 'Describe a flag to new'
-  c.default_value 'default'
-  c.flag :f
-  c.action do |global_options,options,args|
+  c.desc 'put the new task first in the task list'
+  c.switch :f
 
-    # Your command logic here
-     
-    # If you have any errors, just raise them
-    # raise "that command made no sense"
+  c.action do |global_options,options,task_names|
+    data = File.expand_path(global_options[:filename])
+    unless File.exist?(data)
+      puts "Creating #{data}" 
+      File.new(data, 'w+')
+    end 
 
-    puts "new command ran"
+    File.open(data, 'a+') do |todo_file|
+      raise "You must specify the project's name that new tasks belong to" if options[:p].nil?
+
+      if task_names.empty?
+        puts "Reading new tasks from stdin..."
+        task_names = STDIN.readlines.map { |a| a.chomp }
+      end
+
+      project = options[:p]
+
+      tasks = 0
+      todo_file.each_line do |line|
+        tasks += 1 if line.chomp.split(',')[0] == project  
+      end
+
+      task_names.each_with_index do |task, index|
+        t = Time.now.strftime("%Y-%m-%d %H:%M:%S")
+        todo_file.puts [project, index+tasks, task, t].join(',')
+        puts [project, index+tasks, task, ].join(',')
+      end
+    end
   end
 end
 
-desc 'Describe list here'
-arg_name 'Describe arguments to list here'
-command :list do |c|
+desc 'List all tasks'
+command [:list, :ls] do |c|
+  c.desc 'Format of the output (pretty for TTY, csv otherwise)'
+  c.arg_name 'csv|pretty'
+  c.flag :format
+
+  c.desc 'List all tasks belong to a certain project'
+  c.arg_name 'project'
+  c.flag [:p, :project]
+
   c.action do |global_options,options,args|
-    puts "list command ran"
+    if options[:format].nil?
+      options[:format] = STDOUT.tty? ? 'pretty' : 'csv'
+    end
+
+    data = File.read(File.expand_path(global_options[:filename])) 
+    if options[:p].nil?
+      data.each_line do |line|
+        completed = line.chomp.split(',').count
+        if completed == 4
+          puts line.color(:red)
+        else
+          puts line.color(:green)
+        end
+      end
+    else
+      data.each_line do |line|
+        project = line.chomp.split(',')[0]
+        completed = line.chomp.split(',').count
+        if project == options[:p]
+          if completed == 4
+            puts line.color(:red)
+          else
+            puts line.color(:green)
+          end
+        end
+      end
+    end
   end
 end
 
-desc 'Describe done here'
-arg_name 'Describe arguments to done here'
-command :done do |c|
-  c.action do |global_options,options,args|
-    puts "done command ran"
+desc 'Complete a task'
+arg_name 'task_number'
+command [:done, :d] do |c|
+  c.desc 'specify the project\'s name that done tasks belong to'
+  c.arg_name 'project'
+  c.flag [:p, :project]
+
+  c.action do |global_options,options,task_number|
+    old_file = File.expand_path(global_options[:filename])
+    new_file = old_file + '.new'  
+
+    File.open(old_file, 'r') do |todo_file|
+      raise "You must specify the project's name that done tasks belong to" if options[:p].nil?
+
+      File.open(new_file, 'w+') do |new_todo_file|
+        todo_file.readlines.each do |line|
+          field = line.chomp.split(',')
+          project, number = field[0], field[1]
+          if (project == options[:p]) && (field[1] == task_number.first) && (field.count == 4)
+            t = Time.now.strftime("%Y-%m-%d %H:%M:%S")
+            new_todo_file.puts("#{line.chomp}"+",#{t}")
+          else
+            new_todo_file.puts(line)
+          end
+        end
+      end
+    end
+    `rm #{old_file} && mv #{new_file} #{old_file}`
   end
 end
 
 pre do |global,command,options,args|
-  # Pre logic here
-  # Return true to proceed; false to abort and not call the
-  # chosen command
-  # Use skips_pre before a command to skip this block
-  # on that command only
   true
 end
 
 post do |global,command,options,args|
-  # Post logic here
-  # Use skips_post before a command to skip this
-  # block on that command only
 end
 
 on_error do |exception|
-  # Error logic here
-  # return false to skip default error handling
   true
 end
 

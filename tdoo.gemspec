@@ -3,11 +3,11 @@ require File.join([File.dirname(__FILE__),'lib','tdoo','version.rb'])
 spec = Gem::Specification.new do |s| 
   s.name = 'tdoo'
   s.version = Tdoo::VERSION
-  s.author = 'Your Name Here'
-  s.email = 'your@email.address.com'
-  s.homepage = 'http://your.website.com'
+  s.author = 'v4lour'
+  s.email = 'v4lour@gmail.com'
+  s.homepage = 'http://schil.me/'
   s.platform = Gem::Platform::RUBY
-  s.summary = 'A description of your project'
+  s.summary = 'A mini todo command-line application'
 # Add your other files here if you make them
   s.files = %w(
 bin/tdoo
@@ -24,4 +24,5 @@ lib/tdoo.rb
   s.add_development_dependency('rdoc')
   s.add_development_dependency('aruba')
   s.add_runtime_dependency('gli','2.8.1')
+  s.add_runtime_dependency('rainbow')
 end
