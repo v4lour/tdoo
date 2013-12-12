@@ -1,0 +1,5 @@
+= tdoo
+
+Generate this with
+    tdoo rdoc
+After you have described your command line interface
